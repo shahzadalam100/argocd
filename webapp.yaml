@@ -1,4 +1,7 @@
-# 1. HTML page
+```yaml
+# ---------------------------------------------------------
+# 1. ConfigMap: Website HTML
+# ---------------------------------------------------------
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,30 +14,19 @@ data:
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Penguin Technology WebApp</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          text-align: center;
-          margin-top: 100px;
-          background: #f4f7fb;
-        }
-        h1 {
-          color: #1677d2;
-        }
-        p {
-          color: #444;
-        }
-      </style>
+      <title>Penguin Technology</title>
     </head>
     <body>
       <h1>Hello webapp</h1>
-      <p>Welcome to Penguin Technology!</p>
-      <p>Powered by Kubernetes and NGINX.</p>
+      <p>Welcome to Penguin Technology</p>
+      <p>NGINX Ingress and Kubernetes are working.</p>
     </body>
     </html>
+
 ---
-# 2. NGINX Deployment
+# ---------------------------------------------------------
+# 2. Deployment: NGINX Web Server
+# ---------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -53,6 +45,7 @@ spec:
       containers:
         - name: nginx
           image: nginx:stable
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 80
@@ -62,7 +55,7 @@ spec:
               memory: 64Mi
             limits:
               cpu: 500m
-              memory: 128Mi
+              memory: 256Mi
           readinessProbe:
             httpGet:
               path: /
@@ -73,19 +66,22 @@ spec:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 20
           volumeMounts:
-            - name: html
+            - name: webapp-html
               mountPath: /usr/share/nginx/html/index.html
               subPath: index.html
               readOnly: true
       volumes:
-        - name: html
+        - name: webapp-html
           configMap:
             name: webapp-html
+
 ---
-# 3. Kubernetes Service
+# ---------------------------------------------------------
+# 3. Service: Internal Access to NGINX Pods
+# ---------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
@@ -98,25 +94,34 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 80
+      targetPort: http
+      protocol: TCP
+
 ---
-# 4. Let's Encrypt production ClusterIssuer
+# ---------------------------------------------------------
+# 4. ClusterIssuer: Let's Encrypt Production
+# cert-manager must already be installed.
+# Replace the email with your real email address.
+# ---------------------------------------------------------
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    email: support@penguin-technology.com
     server: https://acme-v02.api.letsencrypt.org/directory
+    email: YOUR_REAL_EMAIL@example.org
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
       - http01:
           ingress:
             ingressClassName: nginx
+
 ---
-# 5. HTTPS Ingress
+# ---------------------------------------------------------
+# 5. Ingress: Domain Routing and HTTPS
+# ---------------------------------------------------------
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -124,7 +129,8 @@ metadata:
   namespace: default
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
 spec:
   ingressClassName: nginx
   tls:
@@ -142,3 +148,4 @@ spec:
                 name: webapp-service
                 port:
                   number: 80
+```
